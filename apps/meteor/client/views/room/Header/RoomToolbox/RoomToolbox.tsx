@@ -1,12 +1,13 @@
-import type { Box } from '@rocket.chat/fuselage';
+import { Box } from '@rocket.chat/fuselage';
 import { useEffectEvent } from '@rocket.chat/fuselage-hooks';
 import { GenericMenu, HeaderToolbarAction, HeaderToolbarDivider } from '@rocket.chat/ui-client';
 import { useRoomToolbox, type RenderToolboxItemParams, type RoomToolboxActionConfig } from '@rocket.chat/ui-contexts';
 import type { ComponentProps } from 'react';
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useRoomToolboxActions } from './hooks/useRoomToolboxActions';
+import { buildMenuSectionsFromActions, useRoomToolboxActions } from './hooks/useRoomToolboxActions';
+import { useToolbarFittedCount } from './hooks/useToolbarFittedCount';
 
 type RoomToolboxProps = {
 	className?: ComponentProps<typeof Box>['className'];
@@ -14,11 +15,25 @@ type RoomToolboxProps = {
 
 const RoomToolbox = ({ className }: RoomToolboxProps) => {
 	const { t } = useTranslation();
-
 	const toolbox = useRoomToolbox();
-	const { featuredActions, hiddenActions, visibleActions } = useRoomToolboxActions(toolbox);
+	const { featuredActions, primaryActions, overflowActions } = useRoomToolboxActions(toolbox);
+	const { ref: toolbarRef, fittedCount } = useToolbarFittedCount(50);
 
-	const showKebabMenu = hiddenActions.length > 0;
+	const effectivePrimaryCount =
+		fittedCount < Number.MAX_SAFE_INTEGER ? Math.min(primaryActions.length, fittedCount) : primaryActions.length;
+	const visiblePrimaryActions = useMemo(
+		() => primaryActions.slice(0, effectivePrimaryCount),
+		[primaryActions, effectivePrimaryCount],
+	);
+	const overflowFromPrimary = useMemo(
+		() => primaryActions.slice(effectivePrimaryCount),
+		[primaryActions, effectivePrimaryCount],
+	);
+	const responsiveHiddenActions = useMemo(
+		() => buildMenuSectionsFromActions([...overflowFromPrimary, ...overflowActions], toolbox.openTab, t),
+		[overflowFromPrimary, overflowActions, toolbox.openTab, t],
+	);
+	const showKebabMenu = responsiveHiddenActions.length > 0;
 
 	const renderDefaultToolboxItem = useEffectEvent(
 		({ id, className, icon, title, toolbox: { tab }, action, disabled, tooltip }: RenderToolboxItemParams) => {
@@ -47,12 +62,14 @@ const RoomToolbox = ({ className }: RoomToolboxProps) => {
 	};
 
 	return (
-		<>
+		<Box ref={toolbarRef} display='flex' alignItems='center' flexShrink={0} overflow='hidden'>
 			{featuredActions.map(mapToToolboxItem)}
 			{featuredActions.length > 0 && <HeaderToolbarDivider />}
-			{visibleActions.map(mapToToolboxItem)}
-			{showKebabMenu && <GenericMenu className={className} title={t('Options')} sections={hiddenActions} placement='bottom-end' />}
-		</>
+			{visiblePrimaryActions.map(mapToToolboxItem)}
+			{showKebabMenu && (
+				<GenericMenu className={className} title={t('Options')} sections={responsiveHiddenActions} placement='bottom-end' />
+			)}
+		</Box>
 	);
 };
 

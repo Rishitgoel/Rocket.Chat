@@ -207,6 +207,24 @@ export const createLayoutSettings = () =>
 				public: true,
 			});
 		});
+		await this.section('Room_Header', async function () {
+			await this.add('Layout_Room_Header_Button_Order', '', {
+				type: 'code',
+				code: 'application/json',
+				multiline: true,
+				public: true,
+				i18nLabel: 'Layout_Room_Header_Button_Order',
+				i18nDescription: 'Layout_Room_Header_Button_Order_Description',
+			});
+			await this.add('Layout_Room_Header_Featured_Action_Ids', '["start-video-call","start-voice-call","ai-actions"]', {
+				type: 'code',
+				code: 'application/json',
+				multiline: true,
+				public: true,
+				i18nLabel: 'Layout_Room_Header_Featured_Action_Ids',
+				i18nDescription: 'Layout_Room_Header_Featured_Action_Ids_Description',
+			});
+		});
 		await this.section('Custom CSS', async function () {
 			await this.add('theme-custom-css', '', {
 				type: 'code',

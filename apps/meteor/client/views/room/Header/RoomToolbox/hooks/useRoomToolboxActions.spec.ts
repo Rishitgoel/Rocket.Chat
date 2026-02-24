@@ -11,7 +11,8 @@ describe('useRoomToolboxActions', () => {
 		});
 		expect(result.current.featuredActions).toEqual([]);
 		expect(result.current.hiddenActions).toEqual([]);
-		expect(result.current.visibleActions).toEqual([]);
+		expect(result.current.primaryActions).toEqual([]);
+		expect(result.current.overflowActions).toEqual([]);
 	});
 
 	it('should return apps actions only inside hiddenActions', () => {
@@ -26,12 +27,12 @@ describe('useRoomToolboxActions', () => {
 		expect(appsItems).toMatchObject(appsActions);
 	});
 
-	it('should return max of 6 items on visibleActions and the rest items inside hiddenActions', () => {
+	it('should return max of 6 items on primaryActions and the rest inside hiddenActions when no order setting', () => {
 		const { result } = renderHook(() => useRoomToolboxActions({ actions, openTab: () => undefined }), {
 			wrapper: mockAppRoot().build(),
 		});
 		expect(result.current.hiddenActions.length).toBeGreaterThan(0);
-		expect(result.current.visibleActions.length).toBe(6);
+		expect(result.current.primaryActions.length).toBe(6);
 	});
 
 	it('should return featured items inside featuredActions', () => {
@@ -39,6 +40,56 @@ describe('useRoomToolboxActions', () => {
 			wrapper: mockAppRoot().build(),
 		});
 		expect(result.current.featuredActions).toMatchObject(actions.filter((action) => action.featured));
+	});
+
+	it('should allow admins to disable all featured actions via Layout_Room_Header_Featured_Action_Ids', () => {
+		const { result } = renderHook(() => useRoomToolboxActions({ actions, openTab: () => undefined }), {
+			wrapper: mockAppRoot().withSetting('Layout_Room_Header_Featured_Action_Ids', '[]').build(),
+		});
+
+		expect(result.current.featuredActions).toEqual([]);
+		expect(result.current.primaryActions.map((a) => a.id)).not.toContain('start-call');
+		expect(result.current.overflowActions.map((a) => a.id)).toContain('start-call');
+	});
+
+	it('should allowlist featured actions via Layout_Room_Header_Featured_Action_Ids', () => {
+		const { result } = renderHook(() => useRoomToolboxActions({ actions, openTab: () => undefined }), {
+			wrapper: mockAppRoot().withSetting('Layout_Room_Header_Featured_Action_Ids', '["start-call"]').build(),
+		});
+
+		expect(result.current.featuredActions.map((a) => a.id)).toEqual(['start-call']);
+	});
+
+	it('should place actions in primaryActions in the order of Layout_Room_Header_Button_Order when setting is set', () => {
+		const orderSetting = '["rocket-search", "mentions", "thread"]';
+		const { result } = renderHook(() => useRoomToolboxActions({ actions, openTab: () => undefined }), {
+			wrapper: mockAppRoot().withSetting('Layout_Room_Header_Button_Order', orderSetting).build(),
+		});
+		const primaryIds = result.current.primaryActions.map((a) => a.id);
+		expect(primaryIds).toEqual(['rocket-search', 'mentions', 'thread']);
+	});
+
+	it('should place unrecognized and third-party app action IDs in overflowActions when order setting is set', () => {
+		const orderSetting = '["thread", "rocket-search"]';
+		const actionsWithUnknown: RoomToolboxActionConfig[] = [
+			...actions.filter((a) => !a.featured && a.type !== 'apps').slice(0, 3),
+			{
+				id: 'third-party-app-button',
+				title: 'Third_Party_App' as any,
+				groups: ['channel', 'group'],
+				type: 'apps',
+				icon: 'app' as any,
+			},
+		];
+		const { result } = renderHook(
+			() => useRoomToolboxActions({ actions: actionsWithUnknown, openTab: () => undefined }),
+			{ wrapper: mockAppRoot().withSetting('Layout_Room_Header_Button_Order', orderSetting).build() },
+		);
+		const primaryIds = result.current.primaryActions.map((a) => a.id);
+		const overflowIds = result.current.overflowActions.map((a) => a.id);
+		expect(primaryIds).toContain('thread');
+		expect(overflowIds).toContain('third-party-app-button');
+		expect(primaryIds).not.toContain('third-party-app-button');
 	});
 });
 
